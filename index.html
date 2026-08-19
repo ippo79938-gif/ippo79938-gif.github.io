@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Market Pulse — Binance Live</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; }
+  :root {
+    --bg:#0A0E17; --surface:#121829; --surface2:#171F35; --border:#232B42;
+    --accent:#E8A33D; --bull:#26D07C; --bear:#F0495A;
+    --text:#E8EAF0; --text-dim:#8A93AB; --text-faint:#4F5871;
+  }
+  html, body { margin:0; padding:0; background:var(--bg); }
+  body { color:var(--text); font-family:'Space Grotesk',system-ui,sans-serif; padding-bottom:1.5rem; }
+  .mono { font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums; }
+  .text-dim { color:var(--text-dim); font-weight:400; }
+
+  .ticker-wrap { overflow:hidden; border-bottom:1px solid var(--border); background:#080B12; padding:0.55rem 0; }
+  .ticker-track { display:inline-flex; width:max-content; animation:scrollLeft 38s linear infinite; }
+  @keyframes scrollLeft { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+  @media (prefers-reduced-motion:reduce){ .ticker-track{animation-duration:120s} }
+  .ticker-item { display:inline-flex; align-items:center; gap:0.5rem; padding:0 1.1rem; font-size:0.76rem; border-right:1px solid var(--border); white-space:nowrap; }
+  .ticker-sym { color:var(--text-dim); }
+  .up { color:var(--bull); } .down { color:var(--bear); }
+
+  .container { max-width:640px; margin:0 auto; padding:0 0.9rem; }
+
+  .mp-header { display:flex; align-items:flex-start; justify-content:space-between; gap:0.5rem; padding:1rem 0 0.75rem; }
+  .brand { display:flex; align-items:flex-start; gap:0.55rem; }
+  .brand-dot { width:9px; height:9px; border-radius:50%; background:var(--accent); margin-top:6px; flex-shrink:0; box-shadow:0 0 8px var(--accent); display:block; }
+  .brand h1 { font-size:1.05rem; letter-spacing:0.04em; margin:0; font-weight:700; }
+  .brand p { font-size:0.74rem; color:var(--text-dim); margin:0.15rem 0 0; }
+  .header-actions { display:flex; align-items:center; gap:0.4rem; flex-shrink:0; }
+  .update-time { font-size:0.68rem; color:var(--text-faint); margin-right:0.15rem; white-space:nowrap; }
+  .status-pill { display:inline-flex; align-items:center; gap:0.32rem; font-size:0.66rem; font-family:'JetBrains Mono',monospace; padding:0.22rem 0.55rem; border-radius:20px; white-space:nowrap; }
+  .status-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .status-pill.live { background:rgba(38,208,124,0.12); color:var(--bull); }
+  .status-pill.live .status-dot { background:var(--bull); animation:statusPulse 1.4s ease-in-out infinite; }
+  .status-pill.connecting, .status-pill.reconnecting { background:rgba(232,163,61,0.1); color:var(--accent); }
+  .status-pill.connecting .status-dot, .status-pill.reconnecting .status-dot { background:var(--accent); animation:statusPulse 0.9s ease-in-out infinite; }
+  .status-pill.polling { background:rgba(240,73,90,0.1); color:var(--bear); }
+  .status-pill.polling .status-dot { background:var(--bear); }
+  .status-pill.paused { background:rgba(138,147,171,0.1); color:var(--text-dim); }
+  .status-pill.paused .status-dot { background:var(--text-faint); }
+  @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+  .icon-btn { background:var(--surface); border:1px solid var(--border); color:var(--text-dim); width:30px; height:30px; border-radius:7px; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .icon-btn:active { background:var(--surface2); }
+  .icon-btn svg, .card-loading svg { display:block; }
+  .spin { display:inline-flex; animation:spin 0.9s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  .disclaimer { display:flex; align-items:center; gap:0.45rem; background:rgba(232,163,61,0.08); border:1px solid rgba(232,163,61,0.25); color:#D9A75C; padding:0.5rem 0.65rem; border-radius:8px; font-size:0.72rem; line-height:1.4; margin-bottom:0.75rem; }
+  .disclaimer svg { flex-shrink:0; }
+
+  .tf-selector { display:flex; gap:0.35rem; overflow-x:auto; padding-bottom:0.75rem; scrollbar-width:none; }
+  .tf-selector::-webkit-scrollbar { display:none; }
+  .tf-btn { flex-shrink:0; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:0.74rem; padding:0.4rem 0.75rem; border-radius:20px; cursor:pointer; }
+  .tf-btn.active { background:var(--accent); border-color:var(--accent); color:#0A0E17; font-weight:600; }
+
+  .global-error { background:rgba(240,73,90,0.08); border:1px solid rgba(240,73,90,0.3); border-radius:8px; padding:0.75rem; margin-bottom:0.9rem; font-size:0.78rem; line-height:1.5; }
+  .global-error p { margin:0 0 0.6rem; color:#F0AEB5; }
+  .retry-btn { background:var(--bear); border:none; color:#fff; font-family:'Space Grotesk',sans-serif; font-size:0.78rem; font-weight:600; padding:0.45rem 0.9rem; border-radius:6px; cursor:pointer; }
+
+  .initial-loading { display:flex; flex-direction:column; align-items:center; gap:0.6rem; padding:3rem 0; color:var(--text-dim); font-size:0.82rem; }
+
+  .cards { display:flex; flex-direction:column; gap:0.6rem; }
+  .card-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .market-card { width:100%; background:transparent; border:none; color:var(--text); padding:0.8rem 0.9rem; cursor:pointer; text-align:left; display:block; font-family:inherit; }
+  .card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:0.5rem; }
+  .card-symbol { font-size:0.95rem; font-weight:700; }
+  .card-price { font-size:1.05rem; font-weight:600; margin-top:0.2rem; }
+  .card-right { display:flex; align-items:center; gap:0.5rem; }
+  .card-change { font-size:0.8rem; font-weight:600; }
+  .chevron { color:var(--text-faint); transition:transform 0.2s; display:inline-flex; }
+  .chevron.open { transform:rotate(180deg); }
+  .card-bottom { margin-top:0.55rem; }
+  .card-loading, .card-error { font-size:0.74rem; color:var(--text-faint); }
+  .card-error { color:var(--bear); }
+
+  .bias-badge { display:inline-flex; align-items:center; gap:0.3rem; font-size:0.74rem; font-weight:600; padding:0.25rem 0.55rem; border-radius:20px; }
+  .bias-badge.bull { background:rgba(38,208,124,0.12); color:var(--bull); }
+  .bias-badge.bear { background:rgba(240,73,90,0.12); color:var(--bear); }
+  .bias-badge.side { background:rgba(232,163,61,0.1); color:var(--accent); }
+  .bias-badge svg { display:block; }
+
+  .detail-panel { border-top:1px solid var(--border); padding:0.85rem 0.9rem 1rem; background:#0D1220; }
+  .chart-block { margin-bottom:0.7rem; }
+  .chart-block.half { flex:1; margin-bottom:0; min-width:0; }
+  .chart-label { font-size:0.68rem; color:var(--text-faint); margin-bottom:0.3rem; letter-spacing:0.02em; }
+  .mini-charts { display:flex; gap:0.6rem; margin-bottom:0.8rem; }
+
+  .price-chart-row { display:flex; gap:0.35rem; align-items:stretch; }
+  .svg-chart-wrap { position:relative; flex:1; height:130px; min-width:0; }
+  .svg-chart-wrap.sm { height:60px; }
+  .svg-chart-wrap svg { width:100%; height:100%; display:block; }
+  .chart-yaxis { width:50px; flex-shrink:0; display:flex; flex-direction:column; justify-content:space-between; font-size:9px; color:var(--text-faint); text-align:right; padding:2px 0; }
+  .mini-tag { position:absolute; right:2px; font-size:8px; color:var(--text-faint); }
+  .mini-tag.top { top:0; } .mini-tag.bottom { bottom:0; }
+  .chart-empty, .chart-empty-sm { color:var(--text-faint); font-size:0.72rem; display:flex; align-items:center; justify-content:center; height:100%; }
+
+  .signal-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; margin-bottom:0.8rem; }
+  .signal-chip { display:flex; align-items:center; justify-content:space-between; background:var(--surface2); border-radius:6px; padding:0.35rem 0.55rem; font-size:0.7rem; }
+  .signal-chip.bullish { border-left:2px solid var(--bull); }
+  .signal-chip.bearish { border-left:2px solid var(--bear); }
+  .signal-chip.neutral { border-left:2px solid var(--text-faint); }
+  .sc-name { color:var(--text-dim); }
+  .sc-val { font-weight:600; }
+  .signal-chip.bullish .sc-val { color:var(--bull); }
+  .signal-chip.bearish .sc-val { color:var(--bear); }
+
+  .stat-table { display:flex; flex-direction:column; gap:0.4rem; font-size:0.72rem; margin-bottom:0.7rem; }
+  .stat-row { display:flex; justify-content:space-between; color:var(--text-dim); }
+  .stat-row span:last-child { color:var(--text); }
+
+  .vote-line { font-size:0.72rem; color:var(--text-faint); text-align:center; padding-top:0.4rem; border-top:1px dashed var(--border); }
+
+  .mp-footer { margin-top:1.2rem; padding-top:0.9rem; border-top:1px solid var(--border); }
+  .mp-footer p { font-size:0.68rem; color:var(--text-faint); line-height:1.6; margin:0; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================== CONFIG ============================== */
+const TIMEFRAMES = [
+  { value: '1m', label: '1 นาที' },
+  { value: '5m', label: '5 นาที' },
+  { value: '15m', label: '15 นาที' },
+  { value: '30m', label: '30 นาที' },
+  { value: '1h', label: '1 ชั่วโมง' },
+  { value: '4h', label: '4 ชั่วโมง' },
+];
+const POLL_FALLBACK_MS = 5000;   // REST polling cadence, used only if the WebSocket can't connect
+const RENDER_FLUSH_MS = 1000;    // UI repaint cadence — data itself updates continuously via WebSocket
+const WS_OPEN_TIMEOUT_MS = 8000;
+const WS_FAIL_THRESHOLD = 3;     // consecutive WS failures before falling back to REST polling
+const WS_UPGRADE_RETRY_MS = 45000; // while on REST fallback, try to upgrade back to WebSocket this often
+const STABLE_BASES = new Set(['USDC','FDUSD','TUSD','BUSD','DAI','USDP','EUR','GBP','AEUR','USTC','PAX','UST','GUSD']);
+
+function isEligible(symbol) {
+  if (!symbol.endsWith('USDT')) return false;
+  const base = symbol.slice(0, -4);
+  if (STABLE_BASES.has(base)) return false;
+  if (/(UP|DOWN|BULL|BEAR)$/.test(base)) return false;
+  return true;
+}
+function baseAsset(symbol) { return symbol.endsWith('USDT') ? symbol.slice(0, -4) : symbol; }
+
+/* ============================== ICONS (inline SVG, no external icon library) ============================== */
+const ICONS = {
+  up: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
+  down: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>',
+  minus: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  play: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>',
+};
+
+/* ============================== INDICATOR MATH ============================== */
+function sma(values, period) {
+  const result = new Array(values.length).fill(null);
+  for (let i = period - 1; i < values.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += values[j];
+    result[i] = sum / period;
+  }
+  return result;
+}
+function ema(values, period) {
+  const result = new Array(values.length).fill(null);
+  const k = 2 / (period + 1);
+  let prev = null;
+  for (let i = 0; i < values.length; i++) {
+    if (i === period - 1) {
+      let sum = 0;
+      for (let j = 0; j <= i; j++) sum += values[j];
+      prev = sum / period;
+      result[i] = prev;
+    } else if (i >= period) {
+      prev = values[i] * k + prev * (1 - k);
+      result[i] = prev;
+    }
+  }
+  return result;
+}
+function rsi(closes, period) {
+  period = period || 14;
+  const result = new Array(closes.length).fill(null);
+  if (closes.length <= period) return result;
+  let gain = 0, loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff >= 0) gain += diff; else loss -= diff;
+  }
+  let avgGain = gain / period, avgLoss = loss / period;
+  result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    const g = diff > 0 ? diff : 0;
+    const l = diff < 0 ? -diff : 0;
+    avgGain = (avgGain * (period - 1) + g) / period;
+    avgLoss = (avgLoss * (period - 1) + l) / period;
+    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return result;
+}
+function macd(closes, fast, slow, signal) {
+  fast = fast || 12; slow = slow || 26; signal = signal || 9;
+  const emaFast = ema(closes, fast);
+  const emaSlow = ema(closes, slow);
+  const macdLine = closes.map((_, i) => (emaFast[i] != null && emaSlow[i] != null) ? emaFast[i] - emaSlow[i] : null);
+  const compact = [], idxMap = [];
+  macdLine.forEach((v, i) => { if (v != null) { compact.push(v); idxMap.push(i); } });
+  const sigCompact = ema(compact, signal);
+  const signalLine = new Array(macdLine.length).fill(null);
+  sigCompact.forEach((v, i) => { if (v != null) signalLine[idxMap[i]] = v; });
+  const histogram = macdLine.map((v, i) => (v != null && signalLine[i] != null) ? v - signalLine[i] : null);
+  return { macdLine: macdLine, signalLine: signalLine, histogram: histogram };
+}
+function bollingerBands(closes, period, mult) {
+  period = period || 20; mult = mult || 2;
+  const middle = sma(closes, period);
+  const upper = new Array(closes.length).fill(null);
+  const lower = new Array(closes.length).fill(null);
+  for (let i = period - 1; i < closes.length; i++) {
+    let sumSq = 0;
+    for (let j = i - period + 1; j <= i; j++) sumSq += Math.pow(closes[j] - middle[i], 2);
+    const std = Math.sqrt(sumSq / period);
+    upper[i] = middle[i] + mult * std;
+    lower[i] = middle[i] - mult * std;
+  }
+  return { middle: middle, upper: upper, lower: lower };
+}
+function atr(highs, lows, closes, period) {
+  period = period || 14;
+  const tr = highs.map((h, i) => {
+    if (i === 0) return h - lows[i];
+    return Math.max(h - lows[i], Math.abs(h - closes[i - 1]), Math.abs(lows[i] - closes[i - 1]));
+  });
+  const result = new Array(tr.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += tr[i];
+  result[period - 1] = sum / period;
+  for (let i = period; i < tr.length; i++) result[i] = (result[i - 1] * (period - 1) + tr[i]) / period;
+  return result;
+}
+function smaSkipNull(values, period) {
+  const result = new Array(values.length).fill(null);
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] == null) continue;
+    const w = [];
+    for (let j = i; j >= 0 && w.length < period; j--) {
+      if (values[j] == null) break;
+      w.push(values[j]);
+    }
+    if (w.length === period) result[i] = w.reduce((a, b) => a + b, 0) / period;
+  }
+  return result;
+}
+function stochastic(highs, lows, closes, kPeriod, kSmooth, dPeriod) {
+  kPeriod = kPeriod || 14; kSmooth = kSmooth || 3; dPeriod = dPeriod || 3;
+  const rawK = new Array(closes.length).fill(null);
+  for (let i = kPeriod - 1; i < closes.length; i++) {
+    let hi = -Infinity, lo = Infinity;
+    for (let j = i - kPeriod + 1; j <= i; j++) { hi = Math.max(hi, highs[j]); lo = Math.min(lo, lows[j]); }
+    rawK[i] = hi === lo ? 50 : ((closes[i] - lo) / (hi - lo)) * 100;
+  }
+  const k = smaSkipNull(rawK, kSmooth);
+  const d = smaSkipNull(k, dPeriod);
+  return { k: k, d: d };
+}
+
+function computeBias(candles) {
+  const closes = candles.map(c => c.close);
+  const highs = candles.map(c => c.high);
+  const lows = candles.map(c => c.low);
+  const volumes = candles.map(c => c.volume);
+  const i = closes.length - 1;
+
+  const e20 = ema(closes, 20);
+  const e50 = ema(closes, 50);
+  const macdRes = macd(closes);
+  const histogram = macdRes.histogram;
+  const rsiArr = rsi(closes, 14);
+  const stoch = stochastic(highs, lows, closes);
+  const k = stoch.k, d = stoch.d;
+  const bb = bollingerBands(closes, 20, 2);
+  const atrArr = atr(highs, lows, closes, 14);
+  const volAvg = smaSkipNull(volumes, 20);
+
+  const price = closes[i];
+  const signals = [];
+  let bullPoints = 0, bearPoints = 0;
+
+  if (e20[i] != null && e50[i] != null) {
+    if (price > e20[i] && e20[i] > e50[i]) { bullPoints++; signals.push({ name: 'เทรนด์ EMA20/50', status: 'bullish' }); }
+    else if (price < e20[i] && e20[i] < e50[i]) { bearPoints++; signals.push({ name: 'เทรนด์ EMA20/50', status: 'bearish' }); }
+    else signals.push({ name: 'เทรนด์ EMA20/50', status: 'neutral' });
+  } else signals.push({ name: 'เทรนด์ EMA20/50', status: 'neutral' });
+
+  if (histogram[i] != null) {
+    if (histogram[i] > 0) { bullPoints++; signals.push({ name: 'MACD', status: 'bullish' }); }
+    else if (histogram[i] < 0) { bearPoints++; signals.push({ name: 'MACD', status: 'bearish' }); }
+    else signals.push({ name: 'MACD', status: 'neutral' });
+  } else signals.push({ name: 'MACD', status: 'neutral' });
+
+  if (rsiArr[i] != null) {
+    if (rsiArr[i] > 55) { bullPoints++; signals.push({ name: 'RSI(14)', status: 'bullish', value: rsiArr[i] }); }
+    else if (rsiArr[i] < 45) { bearPoints++; signals.push({ name: 'RSI(14)', status: 'bearish', value: rsiArr[i] }); }
+    else signals.push({ name: 'RSI(14)', status: 'neutral', value: rsiArr[i] });
+  } else signals.push({ name: 'RSI(14)', status: 'neutral' });
+
+  if (k[i] != null && d[i] != null) {
+    if (k[i] > 55 && k[i] > d[i]) { bullPoints++; signals.push({ name: 'Stochastic', status: 'bullish', value: k[i] }); }
+    else if (k[i] < 45 && k[i] < d[i]) { bearPoints++; signals.push({ name: 'Stochastic', status: 'bearish', value: k[i] }); }
+    else signals.push({ name: 'Stochastic', status: 'neutral', value: k[i] });
+  } else signals.push({ name: 'Stochastic', status: 'neutral' });
+
+  if (bb.middle[i] != null) {
+    if (price > bb.middle[i]) { bullPoints++; signals.push({ name: 'Bollinger Band', status: 'bullish' }); }
+    else if (price < bb.middle[i]) { bearPoints++; signals.push({ name: 'Bollinger Band', status: 'bearish' }); }
+    else signals.push({ name: 'Bollinger Band', status: 'neutral' });
+  } else signals.push({ name: 'Bollinger Band', status: 'neutral' });
+
+  let bias = 'sideways', biasText = 'ไซด์เวย์ / ไม่ชัดเจน';
+  if (bullPoints >= 4) { bias = 'strong-bull'; biasText = 'แนวโน้มขึ้นชัดเจน'; }
+  else if (bullPoints === 3 && bearPoints <= 1) { bias = 'bull'; biasText = 'แนวโน้มขึ้นอ่อนๆ'; }
+  else if (bearPoints >= 4) { bias = 'strong-bear'; biasText = 'แนวโน้มลงชัดเจน'; }
+  else if (bearPoints === 3 && bullPoints <= 1) { bias = 'bear'; biasText = 'แนวโน้มลงอ่อนๆ'; }
+
+  return {
+    bias: bias, biasText: biasText, bullPoints: bullPoints, bearPoints: bearPoints, signals: signals,
+    rsi: rsiArr[i], macdHist: histogram[i], stochK: k[i], stochD: d[i],
+    bbUpper: bb.upper[i], bbMiddle: bb.middle[i], bbLower: bb.lower[i],
+    ema20: e20[i], ema50: e50[i], atr: atrArr[i],
+    volSurge: volAvg[i] ? volumes[i] / volAvg[i] : null,
+    series: { closes: closes, bbUpper: bb.upper, bbMiddle: bb.middle, bbLower: bb.lower, rsi: rsiArr, macdHist: histogram },
+  };
+}
+
+/* ============================== DATA FETCHING ============================== */
+async function fetchAllTickers() {
+  const res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+  if (!res.ok) throw new Error('ticker HTTP ' + res.status);
+  return res.json();
+}
+async function fetchKlines(symbol, interval, limit) {
+  limit = limit || 150;
+  const url = 'https://api.binance.com/api/v3/klines?symbol=' + symbol + '&interval=' + interval + '&limit=' + limit;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('klines HTTP ' + res.status);
+  const data = await res.json();
+  return data.map(d => ({ time: d[0], open: parseFloat(d[1]), high: parseFloat(d[2]), low: parseFloat(d[3]), close: parseFloat(d[4]), volume: parseFloat(d[5]) }));
+}
+
+/* ============================== FORMATTERS ============================== */
+function formatPrice(n) {
+  if (n == null || Number.isNaN(n)) return '-';
+  if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  if (n >= 1) return n.toLocaleString('en-US', { maximumFractionDigits: 4, minimumFractionDigits: 2 });
+  if (n >= 0.01) return n.toLocaleString('en-US', { maximumFractionDigits: 6, minimumFractionDigits: 4 });
+  return n.toLocaleString('en-US', { maximumFractionDigits: 8, minimumFractionDigits: 6 });
+}
+function buildChartData(candles, series, n) {
+  n = n || 60;
+  const start = Math.max(0, candles.length - n);
+  const out = [];
+  for (let i = start; i < candles.length; i++) {
+    out.push({
+      close: series.closes[i],
+      bbUpper: series.bbUpper[i],
+      bbLower: series.bbLower[i],
+      bbMiddle: series.bbMiddle[i],
+      rsi: series.rsi[i],
+      hist: series.macdHist[i],
+    });
+  }
+  return out;
+}
+
+/* ============================== SVG CHART BUILDERS (no external chart library) ============================== */
+function yOf(v, h, min, max) { return h - h * (v - min) / ((max - min) || 1); }
+function buildLinePath(values, w, h, min, max) {
+  const n = values.length;
+  const stepX = n > 1 ? w / (n - 1) : w;
+  const range = (max - min) || 1;
+  let path = '', started = false;
+  values.forEach((v, i) => {
+    if (v == null) { started = false; return; }
+    const x = i * stepX;
+    const y = h - h * (v - min) / range;
+    path += (started ? 'L' : 'M') + x.toFixed(2) + ',' + y.toFixed(2) + ' ';
+    started = true;
+  });
+  return path.trim();
+}
+
+function priceChartSVG(chartData) {
+  const w = 300, h = 130;
+  const closes = chartData.map(d => d.close);
+  const uppers = chartData.map(d => d.bbUpper);
+  const lowers = chartData.map(d => d.bbLower);
+  const mids = chartData.map(d => d.bbMiddle);
+  const allVals = closes.concat(uppers, lowers).filter(v => v != null);
+  if (allVals.length === 0) return '<div class="chart-empty">ข้อมูลไม่พอสำหรับกราฟ</div>';
+  let lo = Math.min.apply(null, allVals), hi = Math.max.apply(null, allVals);
+  const pad = (hi - lo) * 0.1 || (hi * 0.01) || 1;
+  lo -= pad; hi += pad;
+
+  const n = chartData.length;
+  const stepX = n > 1 ? w / (n - 1) : w;
+
+  let bandPts = [];
+  chartData.forEach((d, i) => { if (d.bbUpper != null) bandPts.push((i * stepX).toFixed(2) + ',' + yOf(d.bbUpper, h, lo, hi).toFixed(2)); });
+  for (let i = n - 1; i >= 0; i--) { if (chartData[i].bbLower != null) bandPts.push((i * stepX).toFixed(2) + ',' + yOf(chartData[i].bbLower, h, lo, hi).toFixed(2)); }
+
+  const midPath = buildLinePath(mids, w, h, lo, hi);
+  const closePath = buildLinePath(closes, w, h, lo, hi);
+
+  const svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+      '<polygon points="' + bandPts.join(' ') + '" fill="#E8A33D" fill-opacity="0.08"/>' +
+      '<path d="' + midPath + '" fill="none" stroke="#4F5871" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>' +
+      '<path d="' + closePath + '" fill="none" stroke="#E8A33D" stroke-width="1.75" vector-effect="non-scaling-stroke"/>' +
+    '</svg>';
+
+  return '<div class="price-chart-row"><div class="svg-chart-wrap">' + svg + '</div>' +
+    '<div class="chart-yaxis"><span>' + formatPrice(hi) + '</span><span>' + formatPrice(lo) + '</span></div></div>';
+}
+
+function rsiChartSVG(chartData) {
+  const w = 300, h = 60;
+  const values = chartData.map(d => d.rsi);
+  if (values.filter(v => v != null).length === 0) return '<div class="chart-empty-sm">ข้อมูลไม่พอ</div>';
+  const path = buildLinePath(values, w, h, 0, 100);
+  const y70 = yOf(70, h, 0, 100), y30 = yOf(30, h, 0, 100);
+  return '<div class="svg-chart-wrap sm"><svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+    '<line x1="0" y1="' + y70.toFixed(1) + '" x2="' + w + '" y2="' + y70.toFixed(1) + '" stroke="#F0495A" stroke-width="1" stroke-dasharray="2 2" stroke-opacity="0.5" vector-effect="non-scaling-stroke"/>' +
+    '<line x1="0" y1="' + y30.toFixed(1) + '" x2="' + w + '" y2="' + y30.toFixed(1) + '" stroke="#26D07C" stroke-width="1" stroke-dasharray="2 2" stroke-opacity="0.5" vector-effect="non-scaling-stroke"/>' +
+    '<path d="' + path + '" fill="none" stroke="#E8A33D" stroke-width="1.5" vector-effect="non-scaling-stroke"/>' +
+    '</svg><span class="mini-tag top">70</span><span class="mini-tag bottom">30</span></div>';
+}
+
+function macdChartSVG(chartData) {
+  const w = 300, h = 60;
+  const values = chartData.map(d => d.hist);
+  const valid = values.filter(v => v != null);
+  if (valid.length === 0) return '<div class="chart-empty-sm">ข้อมูลไม่พอ</div>';
+  const maxAbs = Math.max.apply(null, valid.map(v => Math.abs(v)).concat([1e-9]));
+  const n = chartData.length;
+  const stepX = n > 1 ? w / (n - 1) : w;
+  const barW = Math.max((w / n) * 0.6, 1);
+  const mid = h / 2;
+  let bars = '';
+  chartData.forEach((d, i) => {
+    if (d.hist == null) return;
+    const barH = Math.max((Math.abs(d.hist) / maxAbs) * (h / 2 - 3), 0.5);
+    const x = i * stepX - barW / 2;
+    const y = d.hist >= 0 ? mid - barH : mid;
+    const color = d.hist >= 0 ? '#26D07C' : '#F0495A';
+    bars += '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + barW.toFixed(2) + '" height="' + barH.toFixed(2) + '" fill="' + color + '"/>';
+  });
+  return '<div class="svg-chart-wrap sm"><svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+    '<line x1="0" y1="' + mid + '" x2="' + w + '" y2="' + mid + '" stroke="#232B42" stroke-width="1" vector-effect="non-scaling-stroke"/>' + bars + '</svg></div>';
+}
+
+/* ============================== STATE ============================== */
+let symbolsList = [];
+let tickerMeta = {};
+let marketData = {};
+let timeframe = '15m';
+let loading = true;
+let globalError = null;
+let lastUpdate = null;
+let expanded = null;
+
+// connectionStatus: 'connecting' | 'live' | 'reconnecting' | 'polling' | 'paused'
+let connectionStatus = 'connecting';
+let ws = null;
+let wsReconnectAttempts = 0;
+let wsReconnectTimer = null;
+let wsOpenTimeoutTimer = null;
+let pollingIntervalTimer = null;
+let pollingUpgradeTimer = null;
+let pollingFailCount = 0;
+let renderFlushTimer = null;
+let renderDirty = false;
+
+/* ============================== TEMPLATES ============================== */
+function tickerTapeHTML() {
+  const items = symbolsList.map(s => ({ symbol: s, price: tickerMeta[s] ? tickerMeta[s].price : null, changePct: tickerMeta[s] ? tickerMeta[s].changePct : null })).filter(it => it.price != null);
+  if (items.length === 0) return '';
+  const renderItems = () => items.map(it =>
+    '<span class="ticker-item"><span class="ticker-sym">' + baseAsset(it.symbol) + '/USDT</span>' +
+    '<span class="mono ' + (it.changePct >= 0 ? 'up' : 'down') + '">' + formatPrice(it.price) + ' ' + (it.changePct >= 0 ? '▲' : '▼') + Math.abs(it.changePct).toFixed(2) + '%</span></span>'
+  ).join('');
+  return '<div class="ticker-wrap"><div class="ticker-track">' + renderItems() + renderItems() + '</div></div>';
+}
+
+const STATUS_LABEL = {
+  connecting: 'กำลังเชื่อมต่อ…',
+  live: 'LIVE',
+  reconnecting: 'กำลังเชื่อมต่อใหม่…',
+  polling: 'สำรอง (REST 5s)',
+  paused: 'หยุดชั่วคราว',
+};
+
+function headerHTML() {
+  const label = STATUS_LABEL[connectionStatus] || connectionStatus;
+  return '<header class="mp-header"><div class="brand"><span class="brand-dot"></span><div>' +
+    '<h1>MARKET PULSE</h1><p>9 คู่เหรียญ Volume สูงสุดบน Binance · WebSocket เรียลไทม์</p></div></div>' +
+    '<div class="header-actions">' +
+    '<span class="status-pill ' + connectionStatus + '"><span class="status-dot"></span>' + label + '</span>' +
+    '<button class="icon-btn" data-action="toggle-live" title="' + (connectionStatus === 'paused' ? 'เชื่อมต่ออีกครั้ง' : 'หยุดสตรีมชั่วคราว') + '">' + (connectionStatus === 'paused' ? ICONS.play : ICONS.pause) + '</button>' +
+    '<button class="icon-btn" data-action="reconnect" title="เชื่อมต่อใหม่ตอนนี้"><span class="' + (loading || connectionStatus === 'connecting' || connectionStatus === 'reconnecting' ? 'spin' : '') + '">' + ICONS.refresh + '</span></button>' +
+    '</div></header>';
+}
+
+function disclaimerHTML() {
+  return '<div class="disclaimer">' + ICONS.alert + '<span>สำหรับอ้างอิงเท่านั้น ไม่ใช่คำแนะนำการลงทุน อินดิเคเตอร์มีความหน่วงและคลาดเคลื่อนได้มากในทำเฟรมสั้น (โดยเฉพาะ 1 นาที)</span></div>';
+}
+
+function tfSelectorHTML() {
+  return '<div class="tf-selector">' + TIMEFRAMES.map(tf =>
+    '<button class="tf-btn ' + (tf.value === timeframe ? 'active' : '') + '" data-action="set-timeframe" data-tf="' + tf.value + '">' + tf.label + '</button>'
+  ).join('') + '</div>';
+}
+
+function globalErrorHTML() {
+  return '<div class="global-error"><p>' + globalError + '</p><button class="retry-btn" data-action="retry">ลองอีกครั้ง</button></div>';
+}
+
+function initialLoadingHTML() {
+  return '<div class="initial-loading"><span class="spin">' + ICONS.refresh + '</span><span>กำลังดึงราคาจาก Binance…</span></div>';
+}
+
+function detailPanelHTML(candles, bias) {
+  const chartData = buildChartData(candles, bias.series, 60);
+  const signalsHTML = bias.signals.map(s =>
+    '<div class="signal-chip ' + s.status + '"><span class="sc-name">' + s.name + '</span>' +
+    '<span class="sc-val mono">' + (s.value != null ? s.value.toFixed(1) : (s.status === 'bullish' ? '↑' : s.status === 'bearish' ? '↓' : '—')) + '</span></div>'
+  ).join('');
+
+  return '<div class="detail-panel">' +
+    '<div class="chart-block"><div class="chart-label">ราคา + Bollinger Band (20,2)</div>' + priceChartSVG(chartData) + '</div>' +
+    '<div class="mini-charts">' +
+      '<div class="chart-block half"><div class="chart-label">RSI (14)</div>' + rsiChartSVG(chartData) + '</div>' +
+      '<div class="chart-block half"><div class="chart-label">MACD Histogram</div>' + macdChartSVG(chartData) + '</div>' +
+    '</div>' +
+    '<div class="signal-grid">' + signalsHTML + '</div>' +
+    '<div class="stat-table mono">' +
+      '<div class="stat-row"><span>EMA20 / EMA50</span><span>' + formatPrice(bias.ema20) + ' / ' + formatPrice(bias.ema50) + '</span></div>' +
+      '<div class="stat-row"><span>Stochastic %K/%D</span><span>' + (bias.stochK != null ? bias.stochK.toFixed(1) : '-') + ' / ' + (bias.stochD != null ? bias.stochD.toFixed(1) : '-') + '</span></div>' +
+      '<div class="stat-row"><span>Bollinger กรอบบน–ล่าง</span><span>' + formatPrice(bias.bbLower) + ' – ' + formatPrice(bias.bbUpper) + '</span></div>' +
+      '<div class="stat-row"><span>ATR (14)</span><span>' + (bias.atr != null ? bias.atr.toFixed(bias.atr < 1 ? 6 : 2) : '-') + '</span></div>' +
+      (bias.volSurge != null ? '<div class="stat-row"><span>Volume เทียบเฉลี่ย 20 แท่ง</span><span>' + (bias.volSurge * 100).toFixed(0) + '%</span></div>' : '') +
+    '</div>' +
+    '<div class="vote-line">ขึ้น ' + bias.bullPoints + ' เสียง · ลง ' + bias.bearPoints + ' เสียง · เป็นกลาง ' + (5 - bias.bullPoints - bias.bearPoints) + ' เสียง (จาก 5 อินดิเคเตอร์)</div>' +
+    '</div>';
+}
+
+function marketCardHTML(sym) {
+  const ticker = tickerMeta[sym];
+  const data = marketData[sym];
+  const bias = data ? data.bias : null;
+  const error = data ? data.error : null;
+  const price = ticker ? ticker.price : null;
+  const changePct = ticker ? ticker.changePct : null;
+  const isExpanded = expanded === sym;
+
+  const biasCls = !bias ? '' : (bias.bias === 'strong-bull' || bias.bias === 'bull') ? 'bull' : (bias.bias === 'strong-bear' || bias.bias === 'bear') ? 'bear' : 'side';
+  const biasIcon = biasCls === 'bull' ? ICONS.up : biasCls === 'bear' ? ICONS.down : ICONS.minus;
+
+  let bottom;
+  if (bias) bottom = '<span class="bias-badge ' + biasCls + '">' + biasIcon + bias.biasText + '</span>';
+  else if (error) bottom = '<span class="card-error">' + error + '</span>';
+  else bottom = '<span class="card-loading">กำลังวิเคราะห์…</span>';
+
+  const html = '<div class="card-wrap">' +
+    '<button class="market-card" data-action="toggle-card" data-symbol="' + sym + '">' +
+      '<div class="card-top"><div class="card-left"><div class="card-symbol mono">' + baseAsset(sym) + '<span class="text-dim">/USDT</span></div>' +
+      '<div class="card-price mono">' + formatPrice(price) + '</div></div>' +
+      '<div class="card-right">' + (changePct != null ? '<div class="card-change mono ' + (changePct >= 0 ? 'up' : 'down') + '">' + (changePct >= 0 ? '▲' : '▼') + ' ' + Math.abs(changePct).toFixed(2) + '%</div>' : '') +
+      '<span class="chevron ' + (isExpanded ? 'open' : '') + '">' + ICONS.chevron + '</span></div></div>' +
+      '<div class="card-bottom">' + bottom + '</div>' +
+    '</button>' +
+    (isExpanded && data && data.candles && data.candles.length > 0 && bias ? detailPanelHTML(data.candles, bias) : '') +
+    '</div>';
+  return html;
+}
+
+function footerHTML() {
+  return '<footer class="mp-footer"><p>ข้อมูลราคาดึงจาก Binance Public API โดยตรงจากเบราว์เซอร์ของคุณ อินดิเคเตอร์ทั้งหมดคำนวณจากข้อมูลย้อนหลังและเป็นเครื่องมือช่วยอ่านภาพตลาดเท่านั้น ' +
+    'ไม่ใช่คำแนะนำการลงทุนหรือการรับประกันผลลัพธ์ การเทรดไบนารีออปชันมีความเสี่ยงสูงมากและอาจสูญเสียเงินลงทุนทั้งหมด โปรดศึกษาและตัดสินใจด้วยความรอบคอบ</p></footer>';
+}
+
+function render() {
+  const app = document.getElementById('app');
+  let cardsSection = '';
+  if (symbolsList.length > 0) {
+    cardsSection = '<div class="cards">' + symbolsList.map(marketCardHTML).join('') + '</div>';
+  }
+  app.innerHTML =
+    tickerTapeHTML() +
+    '<div class="container">' +
+      headerHTML() +
+      disclaimerHTML() +
+      tfSelectorHTML() +
+      (globalError ? globalErrorHTML() : '') +
+      ((!globalError && symbolsList.length === 0 && loading) ? initialLoadingHTML() : '') +
+      cardsSection +
+      footerHTML() +
+    '</div>';
+}
+
+/* ============================== RENDER THROTTLE ============================== */
+// The data model updates the instant a WebSocket message arrives; only the DOM repaint is
+// throttled, so the UI ticks at a steady ~1s cadence without hammering layout on every trade.
+function markDirty() { renderDirty = true; }
+function startRenderFlush() {
+  if (renderFlushTimer) return;
+  renderFlushTimer = setInterval(() => { if (renderDirty) { renderDirty = false; render(); } }, RENDER_FLUSH_MS);
+}
+
+/* ============================== REST BOOTSTRAP (historical candles + symbol ranking) ============================== */
+async function fetchHistoryForSymbols(symList, tf) {
+  return Promise.all(symList.map(async (sym) => {
+    try {
+      const candles = await fetchKlines(sym, tf, 150);
+      return [sym, { candles: candles, bias: computeBias(candles), error: null }];
+    } catch (e) {
+      return [sym, { candles: [], bias: null, error: 'โหลดข้อมูลไม่สำเร็จ' }];
+    }
+  }));
+}
+
+async function bootstrap(forceRerank) {
+  loading = true;
+  connectionStatus = 'connecting';
+  render();
+  try {
+    const allTickers = await fetchAllTickers();
+    let symList = symbolsList;
+    if (forceRerank || symList.length === 0) {
+      const eligible = allTickers.filter(t => isEligible(t.symbol));
+      eligible.sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume));
+      symList = eligible.slice(0, 9).map(t => t.symbol);
+      symbolsList = symList;
+    }
+    globalError = null;
+    pollingFailCount = 0;
+
+    const tMap = {};
+    allTickers.forEach(t => { tMap[t.symbol] = { price: parseFloat(t.lastPrice), changePct: parseFloat(t.priceChangePercent) }; });
+    symList.forEach(s => { if (tMap[s]) tickerMeta[s] = tMap[s]; });
+    render();
+
+    const results = await fetchHistoryForSymbols(symList, timeframe);
+    results.forEach(pair => { marketData[pair[0]] = pair[1]; });
+    lastUpdate = new Date();
+    loading = false;
+    render();
+    connectLive(symList, timeframe);
+  } catch (e) {
+    loading = false;
+    globalError = 'เชื่อมต่อ Binance ไม่สำเร็จ — เครือข่ายหรือผู้ให้บริการอินเทอร์เน็ตของคุณอาจจำกัดการเข้าถึงเซิร์ฟเวอร์ Binance สากล หรืออาจเป็นปัญหาการเชื่อมต่อชั่วคราว ลองกดปุ่มด้านล่างอีกครั้ง';
+    render();
+  }
+}
+
+async function onTimeframeChange(newTf) {
+  timeframe = newTf;
+  teardownWebSocket();
+  stopPollingFallback();
+  loading = true;
+  connectionStatus = 'connecting';
+  render();
+  try {
+    const results = await fetchHistoryForSymbols(symbolsList, timeframe);
+    results.forEach(pair => { marketData[pair[0]] = pair[1]; });
+    lastUpdate = new Date();
+    loading = false;
+    render();
+    connectLive(symbolsList, timeframe);
+  } catch (e) {
+    loading = false;
+    globalError = 'โหลดข้อมูลของทำเฟรมใหม่ไม่สำเร็จ ลองอีกครั้ง';
+    render();
+  }
+}
+
+/* ============================== WEBSOCKET LIVE STREAM ============================== */
+// One combined connection carries both streams for every symbol:
+//   <sym>@ticker      -> 24h price + %change, pushed by Binance roughly once per second
+//   <sym>@kline_<tf>  -> the currently-forming candle, pushed on every trade (sub-second)
+function buildStreamUrl(symbols, interval) {
+  const streams = [];
+  symbols.forEach(s => {
+    const lower = s.toLowerCase();
+    streams.push(lower + '@ticker');
+    streams.push(lower + '@kline_' + interval);
+  });
+  return 'wss://stream.binance.com:9443/stream?streams=' + streams.join('/');
+}
+
+function connectLive(symbols, interval) {
+  teardownWebSocket();
+  stopPollingFallback();
+  connectionStatus = 'connecting';
+  markDirty();
+
+  let opened = false;
+  let socket;
+  try {
+    socket = new WebSocket(buildStreamUrl(symbols, interval));
+  } catch (e) {
+    handleWsDown();
+    return;
+  }
+  ws = socket;
+
+  wsOpenTimeoutTimer = setTimeout(() => {
+    if (!opened && socket === ws) { try { socket.close(); } catch (e) {} }
+  }, WS_OPEN_TIMEOUT_MS);
+
+  socket.onopen = () => {
+    if (socket !== ws) return;
+    opened = true;
+    clearTimeout(wsOpenTimeoutTimer);
+    connectionStatus = 'live';
+    wsReconnectAttempts = 0;
+    markDirty();
+  };
+
+  socket.onmessage = (evt) => {
+    if (socket !== ws) return;
+    try { handleStreamMessage(JSON.parse(evt.data)); } catch (e) { /* ignore malformed frame */ }
+  };
+
+  socket.onerror = () => { /* the close event follows right after; handled there */ };
+
+  socket.onclose = () => {
+    if (socket !== ws) return;
+    clearTimeout(wsOpenTimeoutTimer);
+    ws = null;
+    handleWsDown();
+  };
+}
+
+function teardownWebSocket() {
+  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  if (wsOpenTimeoutTimer) { clearTimeout(wsOpenTimeoutTimer); wsOpenTimeoutTimer = null; }
+  if (ws) {
+    const socket = ws;
+    ws = null;
+    socket.onopen = socket.onmessage = socket.onerror = socket.onclose = null;
+    try { socket.close(); } catch (e) {}
+  }
+}
+
+function handleWsDown() {
+  if (connectionStatus === 'paused') return; // user intentionally disconnected — don't fight it
+  wsReconnectAttempts++;
+  if (wsReconnectAttempts >= WS_FAIL_THRESHOLD) {
+    connectionStatus = 'polling';
+    startPollingFallback();
+  } else {
+    connectionStatus = 'reconnecting';
+  }
+  markDirty();
+  const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts), 20000);
+  wsReconnectTimer = setTimeout(() => {
+    if (symbolsList.length && connectionStatus !== 'paused') connectLive(symbolsList, timeframe);
+  }, delay);
+}
+
+function handleStreamMessage(msg) {
+  if (!msg || !msg.data) return;
+  const data = msg.data;
+  if (data.e === '24hrTicker') {
+    tickerMeta[data.s] = { price: parseFloat(data.c), changePct: parseFloat(data.P) };
+    markDirty();
+  } else if (data.e === 'kline') {
+    updateCandleFromKline(data.s, data.k);
+    markDirty();
+  }
+}
+
+function updateCandleFromKline(sym, k) {
+  const entry = marketData[sym];
+  if (!entry || !entry.candles || entry.candles.length === 0) return; // history not loaded yet
+  const candles = entry.candles;
+  const updated = { time: k.t, open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: parseFloat(k.c), volume: parseFloat(k.v) };
+  const last = candles[candles.length - 1];
+  if (last.time === updated.time) {
+    candles[candles.length - 1] = updated;
+  } else if (updated.time > last.time) {
+    candles.push(updated);
+    if (candles.length > 150) candles.shift();
+  } else {
+    return; // out-of-order/stale frame
+  }
+  entry.bias = computeBias(candles);
+  entry.error = null;
+}
+
+/* ============================== REST FALLBACK POLLING ============================== */
+// Only used when the WebSocket repeatedly fails to connect (e.g. a network that blocks
+// the streaming endpoint but not the REST API). Polls every few seconds instead of live-pushing.
+function startPollingFallback() {
+  stopPollingFallback();
+  pollingIntervalTimer = setInterval(() => { pollOnce(timeframe); }, POLL_FALLBACK_MS);
+  pollingUpgradeTimer = setInterval(() => {
+    wsReconnectAttempts = 0;
+    connectLive(symbolsList, timeframe);
+  }, WS_UPGRADE_RETRY_MS);
+  pollOnce(timeframe);
+}
+function stopPollingFallback() {
+  if (pollingIntervalTimer) { clearInterval(pollingIntervalTimer); pollingIntervalTimer = null; }
+  if (pollingUpgradeTimer) { clearInterval(pollingUpgradeTimer); pollingUpgradeTimer = null; }
+}
+async function pollOnce(tf) {
+  try {
+    const allTickers = await fetchAllTickers();
+    const tMap = {};
+    allTickers.forEach(t => { tMap[t.symbol] = { price: parseFloat(t.lastPrice), changePct: parseFloat(t.priceChangePercent) }; });
+    symbolsList.forEach(s => { if (tMap[s]) tickerMeta[s] = tMap[s]; });
+    const results = await fetchHistoryForSymbols(symbolsList, tf);
+    results.forEach(pair => { marketData[pair[0]] = pair[1]; });
+    lastUpdate = new Date();
+    globalError = null;
+    pollingFailCount = 0;
+  } catch (e) {
+    pollingFailCount++;
+    if (pollingFailCount >= 3) {
+      globalError = 'เชื่อมต่อ Binance ไม่สำเร็จต่อเนื่อง — เครือข่ายของคุณอาจถูกจำกัดการเข้าถึง Binance สากล ลองตรวจสอบการเชื่อมต่อแล้วกดลองอีกครั้ง';
+    }
+  }
+  markDirty();
+}
+
+/* ============================== EVENTS ============================== */
+document.getElementById('app').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const action = el.dataset.action;
+  if (action === 'set-timeframe') { if (el.dataset.tf !== timeframe) onTimeframeChange(el.dataset.tf); }
+  else if (action === 'toggle-card') { expanded = expanded === el.dataset.symbol ? null : el.dataset.symbol; render(); }
+  else if (action === 'reconnect') { wsReconnectAttempts = 0; connectionStatus = 'connecting'; render(); connectLive(symbolsList, timeframe); }
+  else if (action === 'toggle-live') {
+    if (connectionStatus === 'paused') { connectLive(symbolsList, timeframe); }
+    else { teardownWebSocket(); stopPollingFallback(); connectionStatus = 'paused'; render(); }
+  }
+  else if (action === 'retry') { bootstrap(true); }
+});
+
+/* ============================== INIT ============================== */
+render();
+startRenderFlush();
+bootstrap(true);
+</script>
+</body>
+</html>
